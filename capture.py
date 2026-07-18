@@ -1,5 +1,6 @@
 from scapy.all import sniff
 from packet_analyzer import analyser_paquet
+import threading
 
 
 class Capture:
@@ -7,36 +8,38 @@ class Capture:
     def __init__(self, interface):
 
         self.interface = interface
-        self.actif = False
         self.callback = None
-
+        self.actif = False
 
     def demarrer(self):
 
+        if self.actif:
+            return
+
         self.actif = True
 
-        try:
+        thread = threading.Thread(
+            target=self.capturer,
+            daemon=True
+        )
 
-            sniff(
-                iface=self.interface,
-                prn=self.traiter_paquet,
-                store=False
-            )
+        thread.start()
 
-        except KeyboardInterrupt:
+    def capturer(self):
 
-            self.actif = False
-            raise
+        sniff(
+            iface=self.interface,
+            prn=self.traiter_paquet,
+            store=False,
+            stop_filter=lambda x: not self.actif
+        )
 
+    def traiter_paquet(self, packet):
 
-    def traiter_paquet(self, paquet):
-
-        infos = analyser_paquet(paquet)
+        infos = analyser_paquet(packet)
 
         if self.callback:
-
             self.callback(infos)
-
 
     def arreter(self):
 
