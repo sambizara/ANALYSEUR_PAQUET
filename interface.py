@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 
 import threading
 from scapy.all import IFACES
@@ -7,6 +7,8 @@ from scapy.all import IFACES
 from capture import Capture
 from exporter import Exporter
 from filter import Filter
+from importer import Importer
+from packet_analyzer import analyser_paquet
 
 
 class Application(tk.Tk):
@@ -29,6 +31,7 @@ class Application(tk.Tk):
         filtre = Filter()
         self.filtre = filtre
         self.exporter = Exporter()
+        self.importer = Importer()
 
         self.creer_barre_filtres()
 
@@ -156,20 +159,27 @@ class Application(tk.Tk):
             padx=5
         )
 
+        self.btn_import = tk.Button(
+            frame,
+            text="Importer"
+        )
+
+        self.btn_import.grid(
+            row=0,
+            column=16,
+            padx=5
+        )
+
         self.btn_filtrer = tk.Button(
             frame,
             text="Appliquer",
             command=self.appliquer_filtre
         )
 
-        self.btn_filtrer.grid(row=0, column=16, padx=5)
+        self.btn_filtrer.grid(row=0, column=17, padx=5)
 
         self.btn_dashboard = tk.Button(frame, text="Dashboard")
-        self.btn_dashboard.grid(
-            row=0,
-            column=17,
-            padx=5
-        )
+        self.btn_dashboard.grid(row=0, column=18, padx=5)
 
         self.btn_export.config(
             command=self.exporter_csv
@@ -181,6 +191,10 @@ class Application(tk.Tk):
 
         self.btn_export_pcap.config(
             command=self.exporter_pcap
+        )
+
+        self.btn_import.config(
+            command=self.importer_fichier
         )
 
     def exporter_csv(self):
@@ -503,4 +517,75 @@ class Application(tk.Tk):
 
         self.status.config(
             text="Capture arrêtée"
+        )
+
+    def importer_fichier(self):
+
+        chemin = filedialog.askopenfilename(
+
+            title="Choisir un fichier PCAP",
+
+            filetypes=[
+                ("Captures réseau", "*.pcap *.pcapng"),
+                ("Fichiers CSV", "*.csv"),
+                ("Fichiers JSON", "*.json"),
+                ("Tous les fichiers", "*.*")
+            ]
+        )
+
+        if chemin == "":
+            return
+
+        try:
+            if chemin.endswith((".pcap", ".pcapng")):
+
+                paquets = self.importer.importer_pcap(chemin)
+
+            elif chemin.endswith(".csv"):
+
+                paquets = self.importer.importer_csv(chemin)
+
+            elif chemin.endswith(".json"):
+
+                paquets = self.importer.importer_json(chemin)
+
+            else:
+
+                messagebox.showerror(
+                    "Erreur",
+                    "Format non supporté."
+                )
+
+                return
+
+        except Exception as e:
+
+            messagebox.showerror(
+                "Erreur",
+                f"Impossible d'ouvrir le fichier.\n\n{e}"
+            )
+
+            return
+
+        self.vider_tableau()
+
+        for paquet in paquets:
+
+            if isinstance(paquet, dict):
+
+                self.ajouter_paquet(paquet)
+
+            else:
+
+                infos = analyser_paquet(paquet)
+
+                self.ajouter_paquet(infos)
+
+        messagebox.showinfo(
+            "Importation",
+            f"{len(paquets)} paquets importés avec succès."
+        )
+
+        self.status.config(
+            text=f"{len(paquets)} paquets importés"
         )
