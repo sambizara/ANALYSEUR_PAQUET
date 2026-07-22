@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 
 import threading
 from scapy.all import IFACES
 
 from capture import Capture
+from exporter import Exporter
 from filter import Filter
 
 
@@ -20,11 +21,14 @@ class Application(tk.Tk):
         self.total_paquets = 0
         self.taille_totale = 0
         self.protocoles = {}
+        self.paquets = []
+        self.paquets_bruts = []
 
         self.capture = None
         self.thread_capture = None
         filtre = Filter()
         self.filtre = filtre
+        self.exporter = Exporter()
 
         self.creer_barre_filtres()
 
@@ -117,10 +121,40 @@ class Application(tk.Tk):
 
         self.btn_effacer = tk.Button(
             frame,
-            text="Effacer",
+            text="Effacer"
+        )
+        self.btn_effacer.config(
             command=self.vider_tableau
         )
         self.btn_effacer.grid(row=0, column=12, padx=5)
+
+        self.btn_export = tk.Button(
+            frame,
+            text="Exporter CSV"
+        )
+        self.btn_export.grid(row=0, column=13, padx=5)
+
+        self.btn_export_json = tk.Button(
+            frame,
+            text="Exporter JSON"
+        )
+
+        self.btn_export_json.grid(
+            row=0,
+            column=14,
+            padx=5
+        )
+
+        self.btn_export_pcap = tk.Button(
+            frame,
+            text="Exporter PCAP"
+        )
+
+        self.btn_export_pcap.grid(
+            row=0,
+            column=15,
+            padx=5
+        )
 
         self.btn_filtrer = tk.Button(
             frame,
@@ -128,10 +162,87 @@ class Application(tk.Tk):
             command=self.appliquer_filtre
         )
 
-        self.btn_filtrer.grid(row=0, column=13, padx=5)
+        self.btn_filtrer.grid(row=0, column=16, padx=5)
 
         self.btn_dashboard = tk.Button(frame, text="Dashboard")
-        self.btn_dashboard.grid(row=0, column=14, padx=5)
+        self.btn_dashboard.grid(
+            row=0,
+            column=17,
+            padx=5
+        )
+
+        self.btn_export.config(
+            command=self.exporter_csv
+        )
+
+        self.btn_export_json.config(
+            command=self.exporter_json
+        )
+
+        self.btn_export_pcap.config(
+            command=self.exporter_pcap
+        )
+
+    def exporter_csv(self):
+
+        fichier = filedialog.asksaveasfilename(
+            defaultextension=".csv",
+            filetypes=[("Fichier CSV", "*.csv")],
+            title="Enregistrer la capture CSV"
+        )
+
+        if fichier:
+
+            self.exporter.exporter_csv(
+                self.paquets,
+                fichier
+            )
+
+            self.status.config(
+                text="Export CSV terminé"
+            )
+
+    def exporter_json(self):
+
+        fichier = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[
+                ("Fichier JSON", "*.json")
+            ],
+            title="Enregistrer la capture JSON"
+        )
+
+        if fichier:
+
+            self.exporter.exporter_json(
+                self.paquets,
+                fichier
+            )
+
+            self.status.config(
+                text="Export JSON terminé"
+            )
+
+    def exporter_pcap(self):
+
+        fichier = filedialog.asksaveasfilename(
+            defaultextension=".pcap",
+            filetypes=[
+                ("Fichier PCAP", "*.pcap")
+            ],
+            title="Enregistrer la capture PCAP"
+        )
+
+        if fichier:
+
+            self.exporter.exporter_pcap(
+                self.paquets_bruts,
+                fichier
+            )
+
+            self.status.config(
+                text="Export PCAP terminé"
+            )
 
     def appliquer_filtre(self):
 
@@ -213,7 +324,8 @@ class Application(tk.Tk):
 
         self.status.pack(fill="x")
 
-    def ajouter_paquet(self, infos):
+
+    def ajouter_paquet(self, packet, infos):
 
         protocole = infos["protocole"]
 
@@ -228,6 +340,10 @@ class Application(tk.Tk):
             "HTTPS"
         ]:
             protocole = "Autre"
+
+        self.paquets.append(infos)
+
+        self.paquets_bruts.append(packet)
 
         self.table.insert(
             "",
@@ -256,12 +372,27 @@ class Application(tk.Tk):
     def vider_tableau(self):
 
         for ligne in self.table.get_children():
-
             self.table.delete(ligne)
 
         self.numero_paquet = 1
 
+        self.reinitialiser_filtre()
+
         self.status.config(text="Tableau vidé")
+
+    def reinitialiser_filtre(self):
+
+        self.combo_protocole.set("")
+        self.entry_source.delete(0, tk.END)
+        self.entry_destination.delete(0, tk.END)
+        self.entry_port.delete(0, tk.END)
+
+        self.filtre.protocole = None
+        self.filtre.ip_source = None
+        self.filtre.ip_destination = None
+        self.filtre.port = None
+
+        self.status.config(text="Filtres réinitialisés")
 
     def reinitialiser(self):
 
@@ -339,12 +470,12 @@ class Application(tk.Tk):
 
         self.capture = Capture(interface)
 
-        def callback(infos):
+        def callback(packet, infos):
             if self.filtre.appliquer(infos):
 
                 self.after(
                     0,
-                    lambda: self.ajouter_paquet(infos)
+                    lambda: self.ajouter_paquet(packet, infos)
                 )
 
         self.capture.callback = callback

@@ -17,7 +17,7 @@ paquet_test = IP(
 
 infos = analyser_paquet(paquet_test)
 
-app.ajouter_paquet(infos)
+app.ajouter_paquet(paquet_test, infos)
 
 
 app.mainloop()

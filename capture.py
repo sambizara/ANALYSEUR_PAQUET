@@ -39,7 +39,7 @@ class Capture:
         infos = analyser_paquet(packet)
 
         if self.callback:
-            self.callback(infos)
+            self.callback(packet, infos)
 
     def arreter(self):
 
