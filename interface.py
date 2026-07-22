@@ -5,10 +5,12 @@ import threading
 from scapy.all import IFACES
 
 from capture import Capture
+from dashboard import afficher_dashboard
 from exporter import Exporter
 from filter import Filter
 from importer import Importer
 from packet_analyzer import analyser_paquet
+from statistics import Statistics
 
 
 class Application(tk.Tk):
@@ -28,6 +30,7 @@ class Application(tk.Tk):
 
         self.capture = None
         self.thread_capture = None
+        self.stats = Statistics()
         filtre = Filter()
         self.filtre = filtre
         self.exporter = Exporter()
@@ -40,6 +43,7 @@ class Application(tk.Tk):
 
         self.creer_tableau()
         self.creer_barre_etat()
+        self.creer_menu()
 
     def creer_barre_filtres(self):
 
@@ -131,34 +135,6 @@ class Application(tk.Tk):
         )
         self.btn_effacer.grid(row=0, column=12, padx=5)
 
-        self.btn_export = tk.Button(
-            frame,
-            text="Exporter CSV"
-        )
-        self.btn_export.grid(row=0, column=13, padx=5)
-
-        self.btn_export_json = tk.Button(
-            frame,
-            text="Exporter JSON"
-        )
-
-        self.btn_export_json.grid(
-            row=0,
-            column=14,
-            padx=5
-        )
-
-        self.btn_export_pcap = tk.Button(
-            frame,
-            text="Exporter PCAP"
-        )
-
-        self.btn_export_pcap.grid(
-            row=0,
-            column=15,
-            padx=5
-        )
-
         self.btn_import = tk.Button(
             frame,
             text="Importer"
@@ -166,7 +142,53 @@ class Application(tk.Tk):
 
         self.btn_import.grid(
             row=0,
-            column=16,
+            column=13,
+            padx=5
+        )
+
+        self.btn_menu = tk.Menubutton(
+            frame,
+            text="Menu",
+            relief="raised"
+        )
+
+        self.menu_actions = tk.Menu(
+            self.btn_menu,
+            tearoff=0
+        )
+
+        self.menu_actions.add_command(
+            label="Importer",
+            command=self.importer_fichier
+        )
+
+        self.menu_actions.add_command(
+            label="Exporter CSV",
+            command=self.exporter_csv
+        )
+
+        self.menu_actions.add_command(
+            label="Exporter JSON",
+            command=self.exporter_json
+        )
+
+        self.menu_actions.add_command(
+            label="Exporter PCAP",
+            command=self.exporter_pcap
+        )
+
+        self.menu_actions.add_separator()
+
+        self.menu_actions.add_command(
+            label="Quitter",
+            command=self.destroy
+        )
+
+        self.btn_menu.config(menu=self.menu_actions)
+
+        self.btn_menu.grid(
+            row=0,
+            column=14,
             padx=5
         )
 
@@ -176,21 +198,25 @@ class Application(tk.Tk):
             command=self.appliquer_filtre
         )
 
-        self.btn_filtrer.grid(row=0, column=17, padx=5)
+        self.btn_filtrer.grid(row=0, column=15, padx=5)
 
-        self.btn_dashboard = tk.Button(frame, text="Dashboard")
-        self.btn_dashboard.grid(row=0, column=18, padx=5)
+        self.btn_dashboard = tk.Button(
+            frame,
+            text="Dashboard",
+            command=self.afficher_dashboard
+        )
+        self.btn_dashboard.grid(row=0, column=16, padx=5)
 
-        self.btn_export.config(
-            command=self.exporter_csv
+        self.btn_aide = tk.Button(
+            frame,
+            text="Aide",
+            command=self.afficher_aide
         )
 
-        self.btn_export_json.config(
-            command=self.exporter_json
-        )
-
-        self.btn_export_pcap.config(
-            command=self.exporter_pcap
+        self.btn_aide.grid(
+            row=0,
+            column=17,
+            padx=5
         )
 
         self.btn_import.config(
@@ -338,6 +364,54 @@ class Application(tk.Tk):
 
         self.status.pack(fill="x")
 
+    def creer_menu(self):
+
+        barre_menu = tk.Menu(self)
+
+        self.config(menu=barre_menu)
+
+        menu_fichier = tk.Menu(
+            barre_menu,
+            tearoff=0
+        )
+
+        barre_menu.add_cascade(
+            label="Fichier",
+            menu=menu_fichier
+        )
+
+        menu_fichier.add_command(
+            label="Importer",
+            command=self.importer_fichier
+        )
+
+        menu_fichier.add_command(
+            label="Exporter CSV",
+            command=self.exporter_csv
+        )
+
+        menu_fichier.add_command(
+            label="Exporter JSON",
+            command=self.exporter_json
+        )
+
+        menu_fichier.add_command(
+            label="Exporter PCAP",
+            command=self.exporter_pcap
+        )
+
+        menu_fichier.add_separator()
+
+        menu_fichier.add_command(
+            label="Quitter",
+            command=self.destroy
+        )
+
+
+    def afficher_dashboard(self):
+
+        afficher_dashboard(self.stats)
+
 
     def ajouter_paquet(self, packet, infos):
 
@@ -356,6 +430,8 @@ class Application(tk.Tk):
             protocole = "Autre"
 
         self.paquets.append(infos)
+
+        self.stats.ajouter_paquet(infos)
 
         self.paquets_bruts.append(packet)
 
@@ -389,6 +465,7 @@ class Application(tk.Tk):
             self.table.delete(ligne)
 
         self.numero_paquet = 1
+        self.stats = Statistics()
 
         self.reinitialiser_filtre()
 
@@ -573,13 +650,13 @@ class Application(tk.Tk):
 
             if isinstance(paquet, dict):
 
-                self.ajouter_paquet(paquet)
+                self.ajouter_paquet(None, paquet)
 
             else:
 
                 infos = analyser_paquet(paquet)
 
-                self.ajouter_paquet(infos)
+                self.ajouter_paquet(paquet, infos)
 
         messagebox.showinfo(
             "Importation",
@@ -588,4 +665,29 @@ class Application(tk.Tk):
 
         self.status.config(
             text=f"{len(paquets)} paquets importés"
+        )
+
+    def afficher_aide(self):
+
+        message = """
+ANALYSEUR DE PAQUETS RÉSEAU
+
+Fonctionnalités :
+
+• Choisir une interface réseau
+• Démarrer une capture
+• Arrêter une capture
+• Filtrer les paquets par protocole, IP et port
+• Trier les colonnes du tableau
+• Importer des fichiers PCAP, CSV et JSON
+• Exporter les paquets en CSV, JSON et PCAP
+• Afficher le dashboard des statistiques
+• Visualiser les paquets capturés dans un tableau
+
+Développé avec Python, Tkinter, Scapy et Matplotlib.
+"""
+
+        messagebox.showinfo(
+            "Aide",
+            message
         )
